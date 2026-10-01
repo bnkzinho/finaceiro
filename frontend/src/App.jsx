@@ -117,6 +117,45 @@ function PasswordGate({ onEntrar }) {
   )
 }
 
+function SyncIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M3 12a9 9 0 0 1 15.3-6.4L21 8" />
+      <path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-15.3 6.4L3 16" />
+      <path d="M3 21v-5h5" />
+    </svg>
+  )
+}
+
+function BankIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M3 10l9-6 9 6" />
+      <path d="M5 10v9M10 10v9M14 10v9M19 10v9" />
+      <path d="M3 19h18" />
+    </svg>
+  )
+}
+
+function PlusIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  )
+}
+
+function ArrowMovimento({ saida }) {
+  return (
+    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${saida ? 'bg-bad-bg text-bad-text' : 'bg-good-bg text-good-text'}`}>
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        {saida ? <path d="M12 5v14M18 13l-6 6-6-6" /> : <path d="M12 19V5M6 11l6-6 6 6" />}
+      </svg>
+    </span>
+  )
+}
+
 function StatCard({ label, valor, cor = 'text-ink' }) {
   return (
     <div className="card">
@@ -126,9 +165,98 @@ function StatCard({ label, valor, cor = 'text-ink' }) {
   )
 }
 
-function FormularioTransacao({ aoSalvar }) {
+// Paleta categórica validada (ordem fixa, ΔE conferido contra o fundo escuro do app) —
+// nunca gera cor nova pra uma categoria: depois do 6º slot, agrupa em "Outros".
+const PALETA_CATEGORIAS = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300']
+const COR_OUTROS = '#5c574a'
+
+function agruparGastosPorCategoria(transacoes) {
+  const mesAtual = new Date().toISOString().slice(0, 7)
+  const porCategoria = new Map()
+
+  for (const t of transacoes) {
+    if (t.valor >= 0) continue
+    if (t.data.slice(0, 7) !== mesAtual) continue
+    const chave = t.categoria || 'Sem categoria'
+    porCategoria.set(chave, (porCategoria.get(chave) || 0) + Math.abs(t.valor))
+  }
+
+  const ordenado = [...porCategoria.entries()].sort((a, b) => b[1] - a[1])
+  const principais = ordenado.slice(0, PALETA_CATEGORIAS.length)
+  const resto = ordenado.slice(PALETA_CATEGORIAS.length)
+  if (resto.length > 0) {
+    principais.push(['Outros', resto.reduce((s, [, v]) => s + v, 0)])
+  }
+
+  const total = principais.reduce((s, [, v]) => s + v, 0)
+  return principais.map(([nome, valor], i) => ({
+    nome,
+    valor,
+    pct: total > 0 ? (valor / total) * 100 : 0,
+    cor: nome === 'Outros' ? COR_OUTROS : PALETA_CATEGORIAS[i],
+  }))
+}
+
+function GastosDonut({ dados }) {
+  const total = dados.reduce((s, d) => s + d.valor, 0)
+  const raio = 40
+  const circunferencia = 2 * Math.PI * raio
+  const gap = 2.5
+  let acumulado = 0
+
+  return (
+    <div className="flex flex-col items-center gap-6 sm:flex-row">
+      <div className="relative shrink-0">
+        <svg viewBox="0 0 100 100" width="160" height="160" className="-rotate-90">
+          <circle cx="50" cy="50" r={raio} fill="none" stroke="#2a2620" strokeWidth="14" />
+          {dados.map((d) => {
+            const comprimento = total > 0 ? (d.valor / total) * circunferencia : 0
+            const segmento = Math.max(comprimento - gap, 0)
+            const offset = -acumulado
+            acumulado += comprimento
+            return (
+              <circle
+                key={d.nome}
+                cx="50"
+                cy="50"
+                r={raio}
+                fill="none"
+                stroke={d.cor}
+                strokeWidth="14"
+                strokeLinecap="round"
+                strokeDasharray={`${segmento} ${circunferencia - segmento}`}
+                strokeDashoffset={offset}
+              >
+                <title>{`${d.nome}: ${formatarDinheiro(d.valor)} (${d.pct.toFixed(0)}%)`}</title>
+              </circle>
+            )
+          })}
+        </svg>
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-[11px] text-muted">Gastos</span>
+          <span className="text-sm font-semibold text-ink">{formatarDinheiro(total)}</span>
+        </div>
+      </div>
+      <div className="flex w-full flex-col gap-2.5">
+        {dados.map((d) => (
+          <div key={d.nome} className="flex items-center justify-between text-sm">
+            <span className="flex items-center gap-2 text-ink">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: d.cor }} />
+              {d.nome}
+            </span>
+            <span className="text-muted">{d.pct.toFixed(0)}%</span>
+          </div>
+        ))}
+        {dados.length === 0 && <span className="text-sm text-muted">Sem gastos categorizados este mês ainda.</span>}
+      </div>
+    </div>
+  )
+}
+
+function FormularioTransacao({ aoSalvar, aoFechar }) {
   const [descricao, setDescricao] = useState('')
   const [valor, setValor] = useState('')
+  const [categoria, setCategoria] = useState('')
   const [data, setData] = useState(() => new Date().toISOString().slice(0, 10))
   const [tipo, setTipo] = useState('gasto')
   const [fixo, setFixo] = useState(false)
@@ -142,13 +270,16 @@ function FormularioTransacao({ aoSalvar }) {
       await api.criarTransacao({
         descricao,
         valor: tipo === 'gasto' ? -valorNumerico : valorNumerico,
+        categoria: categoria || null,
         data,
         fixo,
       })
       setDescricao('')
       setValor('')
+      setCategoria('')
       setFixo(false)
       aoSalvar()
+      aoFechar?.()
     } finally {
       setSalvando(false)
     }
@@ -158,17 +289,21 @@ function FormularioTransacao({ aoSalvar }) {
     <form onSubmit={handleSubmit} className="card flex flex-wrap items-end gap-3">
       <div className="flex flex-col gap-1">
         <label className="stat-label">Descrição</label>
-        <input className="field-input" value={descricao} onChange={(e) => setDescricao(e.target.value)} required style={{ width: 200 }} />
+        <input className="field-input" value={descricao} onChange={(e) => setDescricao(e.target.value)} required style={{ width: 180 }} />
       </div>
       <div className="flex flex-col gap-1">
         <label className="stat-label">Valor</label>
-        <input type="number" step="0.01" className="field-input" value={valor} onChange={(e) => setValor(e.target.value)} required style={{ width: 120 }} />
+        <input type="number" step="0.01" className="field-input" value={valor} onChange={(e) => setValor(e.target.value)} required style={{ width: 110 }} />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="stat-label">Categoria</label>
+        <input className="field-input" placeholder="opcional" value={categoria} onChange={(e) => setCategoria(e.target.value)} style={{ width: 130 }} />
       </div>
       <div className="flex flex-col gap-1">
         <label className="stat-label">Data</label>
         <input type="date" className="field-input" value={data} onChange={(e) => setData(e.target.value)} required />
       </div>
-      <select className="field-input" value={tipo} onChange={(e) => setTipo(e.target.value)} style={{ width: 120 }}>
+      <select className="field-input" value={tipo} onChange={(e) => setTipo(e.target.value)} style={{ width: 110 }}>
         <option value="gasto">Gasto</option>
         <option value="receita">Receita</option>
       </select>
@@ -181,11 +316,20 @@ function FormularioTransacao({ aoSalvar }) {
   )
 }
 
+const FILTROS = [
+  { chave: 'todos', rotulo: 'Todos' },
+  { chave: 'gastos', rotulo: 'Gastos' },
+  { chave: 'receitas', rotulo: 'Receitas' },
+  { chave: 'fixos', rotulo: 'Fixos' },
+]
+
 function Dashboard() {
   const [resumo, setResumo] = useState(null)
   const [erro, setErro] = useState('')
   const [sincronizando, setSincronizando] = useState(false)
   const [connectToken, setConnectToken] = useState(null)
+  const [mostrarForm, setMostrarForm] = useState(false)
+  const [filtro, setFiltro] = useState('todos')
 
   async function carregar() {
     try {
@@ -231,65 +375,121 @@ function Dashboard() {
     carregar()
   }
 
+  const saldoMes = resumo ? resumo.totalReceitaMes - resumo.totalGastoMes : 0
+  const transacoes = resumo?.transacoes || []
+  const transacoesFiltradas = transacoes.filter((t) => {
+    if (filtro === 'gastos') return t.valor < 0
+    if (filtro === 'receitas') return t.valor > 0
+    if (filtro === 'fixos') return t.fixo
+    return true
+  })
+  const dadosDonut = agruparGastosPorCategoria(transacoes)
+
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-6 p-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Financeiro</h1>
-        <div className="flex gap-2">
-          <button className="btn-ghost" onClick={handleSincronizar} disabled={sincronizando}>
-            {sincronizando ? 'Sincronizando…' : 'Sincronizar'}
-          </button>
-          <button className="btn-primary" onClick={handleConectarBanco}>Conectar banco</button>
+    <div className="min-h-screen bg-[#0b0b0d]">
+      <div className="mx-auto flex max-w-5xl flex-col gap-6 p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-md border border-brand-500/40 text-brand-500">
+              <LockIcon />
+            </div>
+            <span className="text-sm font-semibold tracking-[0.25em] text-ink">FINANCEIRO</span>
+          </div>
+          <div className="flex gap-2">
+            <button className="btn-ghost" onClick={() => setMostrarForm((v) => !v)}>
+              <PlusIcon /> Lançar
+            </button>
+            <button className="btn-ghost" onClick={handleSincronizar} disabled={sincronizando}>
+              <SyncIcon className={sincronizando ? 'animate-spin' : ''} />
+              {sincronizando ? 'Sincronizando…' : 'Sincronizar'}
+            </button>
+            <button className="btn-primary" onClick={handleConectarBanco}>
+              <BankIcon /> Conectar banco
+            </button>
+          </div>
         </div>
-      </div>
 
-      {erro && <div className="card border-bad-border bg-bad-bg text-sm text-bad-text">{erro}</div>}
+        {erro && <div className="card border-bad-border bg-bad-bg text-sm text-bad-text">{erro}</div>}
 
-      {resumo && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <StatCard label="Gasto este mês" valor={resumo.totalGastoMes} cor="text-bad-text" />
-          <StatCard label="Receita este mês" valor={resumo.totalReceitaMes} cor="text-good-text" />
-          <StatCard label="Gastos fixos" valor={resumo.gastosFixosMes} />
-          <StatCard label="Total investido" valor={resumo.totalInvestido} cor="text-brand-600" />
-        </div>
-      )}
-
-      <FormularioTransacao aoSalvar={carregar} />
-
-      <div className="card overflow-hidden p-0">
-        <div className="border-b border-line px-5 py-3 text-sm font-semibold">Transações recentes</div>
-        <div className="divide-y divide-line">
-          {resumo?.transacoes?.map((t) => (
-            <div key={t.id} className="flex items-center justify-between px-5 py-3 text-sm">
-              <div>
-                <div className="font-medium">{t.descricao}</div>
-                <div className="text-xs text-muted">{t.data} · {t.contas?.nome || 'manual'}{t.categoria ? ` · ${t.categoria}` : ''}</div>
+        {resumo && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="card sm:col-span-2">
+              <div className="stat-label">Saldo do mês</div>
+              <div className={`mt-1 text-3xl font-semibold leading-tight ${saldoMes < 0 ? 'text-bad-text' : 'text-good-text'}`}>
+                {formatarDinheiro(saldoMes)}
               </div>
-              <div className="flex items-center gap-3">
-                <span className={t.valor < 0 ? 'text-bad-text' : 'text-good-text'}>{formatarDinheiro(t.valor)}</span>
-                <button
-                  className={`rounded-full border px-2 py-0.5 text-xs ${t.fixo ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-line text-muted'}`}
-                  onClick={() => handleMarcarFixo(t.id, t.fixo)}
-                >
-                  fixo
-                </button>
+              <div className="mt-3 flex gap-5 text-xs text-muted">
+                <span>Receita: <span className="text-good-text">{formatarDinheiro(resumo.totalReceitaMes)}</span></span>
+                <span>Gasto: <span className="text-bad-text">{formatarDinheiro(resumo.totalGastoMes)}</span></span>
               </div>
             </div>
-          ))}
-          {resumo && resumo.transacoes?.length === 0 && (
-            <div className="px-5 py-8 text-center text-sm text-muted">Nenhuma transação ainda — conecta um banco ou lança uma acima.</div>
-          )}
-        </div>
-      </div>
+            <div className="flex flex-col gap-4">
+              <StatCard label="Gastos fixos" valor={resumo.gastosFixosMes} />
+              <StatCard label="Total investido" valor={resumo.totalInvestido} cor="text-brand-500" />
+            </div>
+          </div>
+        )}
 
-      {connectToken && (
-        <PluggyConnect
-          connectToken={connectToken}
-          onSuccess={handleSucessoConexao}
-          onError={(err) => setErro(err?.message || 'Falha ao conectar banco.')}
-          onClose={() => setConnectToken(null)}
-        />
-      )}
+        {mostrarForm && <FormularioTransacao aoSalvar={carregar} aoFechar={() => setMostrarForm(false)} />}
+
+        <div className="card">
+          <div className="mb-4 text-sm font-semibold text-ink">Seus gastos do mês</div>
+          <GastosDonut dados={dadosDonut} />
+        </div>
+
+        <div className="card overflow-hidden p-0">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3">
+            <span className="text-sm font-semibold text-ink">Movimentações</span>
+            <div className="flex gap-1.5">
+              {FILTROS.map((f) => (
+                <button
+                  key={f.chave}
+                  onClick={() => setFiltro(f.chave)}
+                  className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                    filtro === f.chave ? 'bg-gradient-to-r from-[#e0bb7c] to-[#b98f4a] text-[#1a1510]' : 'border border-line text-muted hover:text-ink'
+                  }`}
+                >
+                  {f.rotulo}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="divide-y divide-line">
+            {transacoesFiltradas.map((t) => (
+              <div key={t.id} className="flex items-center justify-between gap-3 px-5 py-3 text-sm">
+                <div className="flex items-center gap-3">
+                  <ArrowMovimento saida={t.valor < 0} />
+                  <div>
+                    <div className="font-medium text-ink">{t.descricao}</div>
+                    <div className="text-xs text-muted">{t.data} · {t.contas?.nome || 'manual'}{t.categoria ? ` · ${t.categoria}` : ''}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={t.valor < 0 ? 'text-bad-text' : 'text-good-text'}>{formatarDinheiro(t.valor)}</span>
+                  <button
+                    className={`rounded-full border px-2 py-0.5 text-xs ${t.fixo ? 'border-brand-500 bg-brand-50 text-brand-500' : 'border-line text-muted'}`}
+                    onClick={() => handleMarcarFixo(t.id, t.fixo)}
+                  >
+                    fixo
+                  </button>
+                </div>
+              </div>
+            ))}
+            {resumo && transacoesFiltradas.length === 0 && (
+              <div className="px-5 py-8 text-center text-sm text-muted">Nenhuma transação aqui ainda — conecta um banco ou lança uma acima.</div>
+            )}
+          </div>
+        </div>
+
+        {connectToken && (
+          <PluggyConnect
+            connectToken={connectToken}
+            onSuccess={handleSucessoConexao}
+            onError={(err) => setErro(err?.message || 'Falha ao conectar banco.')}
+            onClose={() => setConnectToken(null)}
+          />
+        )}
+      </div>
     </div>
   )
 }

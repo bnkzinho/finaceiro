@@ -23,12 +23,12 @@ body {
     @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50;
   }
   .btn-primary {
-    @apply btn bg-brand-600 text-white hover:bg-brand-700;
+    @apply btn bg-gradient-to-r from-[#e0bb7c] to-[#b98f4a] text-[#1a1510] hover:brightness-110;
   }
   .btn-ghost {
-    @apply btn border border-line bg-surface text-ink hover:bg-paper;
+    @apply btn border border-line bg-surface text-ink hover:border-brand-500/40;
   }
   .field-input {
-    @apply w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink;
+    @apply w-full rounded-md border border-line bg-surface2 px-3 py-2 text-sm text-ink placeholder:text-muted;
   }
 }
