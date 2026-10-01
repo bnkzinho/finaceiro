@@ -55,10 +55,13 @@ create index if not exists idx_transacoes_conta on public.transacoes(conta_id);
 create index if not exists idx_investimentos_data on public.investimentos(data);
 
 -- Uso pessoal, protegido por uma senha única no backend (não por login
--- de usuário) — então RLS fica desligado e o backend usa a chave
--- "service_role" (acesso total), nunca a chave anon pública direto do
--- navegador. Veja backend/.env.example.
-alter table public.pluggy_items disable row level security;
-alter table public.contas disable row level security;
-alter table public.transacoes disable row level security;
-alter table public.investimentos disable row level security;
+-- de usuário via Supabase Auth) — mas o RLS fica LIGADO mesmo assim, e
+-- sem nenhuma policy pra "anon"/"authenticated": isso bloqueia qualquer
+-- acesso pela chave publicável/anon, mesmo que ela vaze (é rotulada como
+-- "segura pra expor" pela própria Supabase, então não dá pra contar só
+-- com ela ficar em segredo). Só a chave secreta/service_role, que o
+-- backend usa, consegue ler/escrever — ela ignora o RLS por natureza.
+alter table public.pluggy_items enable row level security;
+alter table public.contas enable row level security;
+alter table public.transacoes enable row level security;
+alter table public.investimentos enable row level security;
