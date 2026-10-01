@@ -17,7 +17,7 @@ function PasswordGate({ onEntrar }) {
       await api.resumo()
       onEntrar()
     } catch (err) {
-      setErro('Senha incorreta.')
+      setErro(err.message || 'Senha incorreta.')
     }
   }
 
